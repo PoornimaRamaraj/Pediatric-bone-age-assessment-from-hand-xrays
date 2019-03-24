@@ -1,15 +1,11 @@
 #!/usr/bin/env python
 # coding: utf-8
-
-# In[1]:
-
-
+#import necessary libraries
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "1" # which gpu to use
-
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error as sk_mae
 import tensorflow as tf
@@ -27,21 +23,13 @@ import pdb
 import numpy as np
 import sys
 
-
-# In[2]:
-
-
-#Reading dat
+#Reading data
 print("Reading data...")
 #pdb.set_trace()
 img_dir = '/media/samba_share/data/BoneAge/Image/rsna/boneage-training-dataset/'
 csv_path = '/media/samba_share/data/BoneAge/Image/rsna/boneage-training-dataset.csv'
 age_df = pd.read_csv(csv_path)
-
 print age_df.head(10)
-
-
-# In[3]:
 
 
 age_df['path'] = age_df['id'].map(lambda x: img_dir+"{}.png".format(x))
@@ -52,12 +40,7 @@ print age_df['exists'].head(10)
 print age_df['path'].head(10)
 
 
-# In[4]:
 
-
-# age_df['path'] = age_df['id'].map(lambda x: img_dir+"{}.png".format(x))
-# age_df['exists'] = age_df['path'].map(os.path.exists)
-# age_df['gender'] = age_df['male'].map(lambda x: "male" if x else "female")
 mu = age_df['boneage'].mean()
 sigma = age_df['boneage'].std()
 print mu
@@ -67,7 +50,7 @@ print age_df['zscore'].head(10)
 age_df.dropna(inplace=True)
 
 
-# In[5]:
+
 
 
 #Examine the distribution of age and gender
@@ -78,54 +61,29 @@ plt.show()
 print("Reading complete !!!\n")
 
 
-# In[6]:
 
-
-# #Split into training testing and validation datasets
-# print("Preparing training, testing and validation datasets ...")
-# age_df['boneage_category'] = pd.cut(age_df['boneage'], 10)
-# raw_train_df, test_df = train_test_split(age_df, 
-#                                    test_size = 0.2, 
-#                                    random_state = 2018,
-#                                    stratify = age_df['boneage_category'])
-# raw_train_df, valid_df = train_test_split(raw_train_df, 
-#                                    test_size = 0.1,
-#                                    random_state = 2018,
-#                                    stratify = raw_train_df['boneage_category'])
-
-
-# In[ ]:
 
 
 #Split into training testing and validation datasets
 print("Preparing training, testing and validation datasets ...")
 age_df['boneage_category'] = pd.cut(age_df['boneage'], 10)
-train_df, test_df = train_test_split(age_df, 
+raw_train_df, test_df = train_test_split(age_df, 
                                    test_size = 0.2, 
                                    random_state = 2018,
                                    stratify = age_df['boneage_category'])
-train_df, valid_df = train_test_split(raw_train_df, 
+raw_train_df, valid_df = train_test_split(raw_train_df, 
                                    test_size = 0.1,
                                    random_state = 2018,
                                    stratify = raw_train_df['boneage_category'])
 
 
-# In[7]:
 
 
-#Balance the distribution in the training set
-# train_df = raw_train_df.groupby(['boneage_category','gender']).apply(lambda x: x.sample(500, replace = True)).reset_index(drop=True)
-
-
-# In[8]:
-
-
+# Balance the distribution in the training set
+train_df = raw_train_df.groupby(['boneage_category','gender']).apply(lambda x: x.sample(500, replace = True)).reset_index(drop=True)
 print(train_df.sample(5))
 train_df[['boneage','gender']].hist(figsize = (10, 5))
 plt.show()
-
-
-# In[9]:
 
 
 train_size = train_df.shape[0]
@@ -136,12 +94,12 @@ print("# Validation images: {}".format(valid_size))
 print("# Testing images:    {}".format(test_size))
 
 
-# In[10]:
 
 
 from keras.preprocessing.image import ImageDataGenerator
-from keras.applications.vgg16 import preprocess_input
-IMG_SIZE = (224, 224) # slightly smaller than vgg16 normally expects
+
+IMG_SIZE = (224, 224) # default size for inception_v3
+
 core_idg = ImageDataGenerator(samplewise_center=False, 
                               samplewise_std_normalization=False, 
                               horizontal_flip = True, 
@@ -153,9 +111,6 @@ core_idg = ImageDataGenerator(samplewise_center=False,
                               fill_mode = 'nearest',
                               zoom_range=0.25,
                              preprocessing_function = preprocess_input)
-
-
-# In[11]:
 
 
 def flow_from_dataframe(img_data_gen, in_df, path_col, y_col, **dflow_args):
@@ -173,8 +128,6 @@ def flow_from_dataframe(img_data_gen, in_df, path_col, y_col, **dflow_args):
     print('Reinserting dataframe: {} images'.format(in_df.shape[0]))
     return df_gen
 
-
-# In[12]:
 
 
 train_gen = flow_from_dataframe(core_idg, train_df, 
@@ -203,8 +156,6 @@ test_X, test_Y = next(flow_from_dataframe(core_idg,
                             batch_size = 1024))
 
 
-# In[13]:
-
 
 t_x, t_y = next(train_gen)
 fig, m_axs = plt.subplots(2, 4, figsize = (16, 8))
@@ -214,13 +165,8 @@ for (c_x, c_y, c_ax) in zip(t_x, t_y, m_axs.flatten()):
     c_ax.axis('off')
 
 
-# In[14]:
-
-
 print t_x.shape[1:]
 
-
-# In[15]:
 
 
 print("Compiling deep model ...")
@@ -239,17 +185,18 @@ output_layer = Dense(1, activation = 'linear')(dense_layer) # linear is what 16b
 bone_age_model = Model(inputs=img,outputs=output_layer)
 
 
-# In[16]:
+
 
 
 def mae_months(in_gt, in_pred):
     return mean_absolute_error(mu+sigma*in_gt, mu+sigma*in_pred)
+  
 bone_age_model.compile(optimizer = 'adam', loss = 'mse', metrics = [mae_months])
 bone_age_model.summary()
 print("Model compiled !!!\n")
 
 
-# In[17]:
+
 
 
 from keras.callbacks import ModelCheckpoint, LearningRateScheduler, EarlyStopping, ReduceLROnPlateau
@@ -261,25 +208,14 @@ early = EarlyStopping(monitor="val_loss", mode="min", patience=10) # probably ne
 callbacks_list = [checkpoint, early, reduceLROnPlat]
 
 
-# In[19]:
-
-
 bone_age_model.fit_generator(train_gen,
                                   steps_per_epoch = train_size/10,
                                   validation_data = (test_X,test_Y),
                                   epochs = 15, 
                                   callbacks = callbacks_list)
 
-
-# In[20]:
-
-
 bone_age_model.load_weights(weight_path)
 print("Training complete !!!\n")
-
-
-# In[21]:
-
 
 #Evaluate model on test dataset
 print("Evaluating model on test data ...\n")
@@ -287,16 +223,11 @@ print("Preparing testing dataset...")
 test_X, test_Y = next(flow_from_dataframe(core_idg,test_df, 
                              path_col = 'path',
                             y_col = 'zscore',
-                          
                             batch_size = 1024,
                             target_size = IMG_SIZE,
                              color_mode = 'rgb'))
                              # one big batch
 print("Data prepared !!!")
-
-
-# In[27]:
-
 
 pred_Y = mu+sigma*bone_age_model.predict(x=test_X,batch_size=25,verbose=1)
 test_Y_months = mu+sigma*test_Y
@@ -314,45 +245,9 @@ ord_idx = ord_idx[np.linspace(0, len(ord_idx)-1, num=8).astype(int)] # take 8 ev
 fig, m_axs = plt.subplots(2, 4, figsize = (16, 32))
 for (idx, c_ax) in zip(ord_idx, m_axs.flatten()):
     c_ax.imshow(test_X[idx, :,:,0], cmap = 'bone')
-    title = 'Age: %2.1f/nPredicted Age: %2.1f/nGender: ' % (test_Y_months[idx], pred_Y[idx])
-#     if test_X[1][idx]==0:
-#       title+="Female/n"
-#     else:
-#       title+="Male/n"
-    c_ax.set_title(title)
-    c_ax.axis('off')
-plt.show()
-
-
-# In[26]:
-
-
-ord_idx = np.argsort(test_Y)
-ord_idx = ord_idx[np.linspace(0, len(ord_idx)-1, num=8).astype(int)] # take 8 evenly spaced ones
-fig, m_axs = plt.subplots(2, 4, figsize = (16, 32))
-for (idx, c_ax) in zip(ord_idx, m_axs.flatten()):
-    c_ax.imshow(test_X[idx, :,:,0], cmap = 'bone')
     title = 'Age: %2.1fY Predicted Age: %2.1fY: ' % (test_Y_months[idx]/12.0, pred_Y[idx]/12.0)
-#     if test_X[1][idx]==0:
-#       title+="Female/n"
-#     else:
-#       title+="Male/n"
     c_ax.set_title(title)
     c_ax.axis('off')
 plt.show()
 
-
-# In[ ]:
-
-
-ord_idx = np.argsort(test_Y)
-ord_idx = ord_idx[np.linspace(0, len(ord_idx)-1, 8).astype(int)] # take 8 evenly spaced ones
-fig, m_axs = plt.subplots(4, 2, figsize = (16, 32))
-for (idx, c_ax) in zip(ord_idx, m_axs.flatten()):
-    c_ax.imshow(test_X[idx, :,:,0], cmap = 'bone')
-    
-    c_ax.set_title('Age: %2.1fY\nPredicted Age: %2.1fY' % (test_Y_months[idx]/12.0, 
-                                                           pred_Y[idx]/12.0))
-    c_ax.axis('off')
-fig.savefig('trained_img_predictions.png', dpi = 300)
 
